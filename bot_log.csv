@@ -1,0 +1,3 @@
+timestamp,coin,action,price,reward,leverage,precision,fibonacci,ma200,news,fear_greed
+2025-04-22 10:00:00,BTC,Buy,42000,0.12,3,0.95,Support,Above,Bullish outlook,60
+2025-04-22 11:00:00,ETH,Sell,3000,-0.05,2,0.88,Resistance,Below,Bearish signals,40
