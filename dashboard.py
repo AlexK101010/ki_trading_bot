@@ -36,8 +36,37 @@ if ENABLE_DASHBOARD_CONTROLS:
                 st.error(f"Fehler beim Zurücksetzen: {e}")
 
 # =============================
-# Manueller Trade-Simulator
+# Trainingsstatus-Anzeige
 # =============================
+st.subheader("🔬 Lernstatus")
+with st.expander("📢 Trainingsmodus aktiv"):
+    st.info("Der Bot führt aktuell Mutationen durch, um neue Strategiekombinationen zu testen.")
+
+# =============================
+# Manueller Trade-Simulator mit Mutation
+# =============================
+def mutate_strategy(trade):
+    mutation_rate = 0.3
+    if os.path.exists(LOGFILE_PERFORMANCE):
+        df = pd.read_csv(LOGFILE_PERFORMANCE)
+        last_reward = df["reward"].iloc[-1]
+        if last_reward < 0:
+            mutation_rate = 0.6
+        elif last_reward > 0.1:
+            mutation_rate = 0.1
+
+    if random.random() < mutation_rate:
+        original = trade["strategie_combo"]
+        parts = original.split(" + ")
+        if parts:
+            idx = random.randint(0, len(parts)-1)
+            options = ["Fibonacci", "RSI", "MA200", "Heatmap", "News", "Trendfolge"]
+            parts[idx] = random.choice(options)
+        mutated = " + ".join(parts)
+        trade["strategie_combo"] = mutated
+        return mutated
+    return trade["strategie_combo"]
+
 def simulate_trade():
     coins = ["BTC", "ETH", "SOL", "XRP", "SUI"]
     trade = {
@@ -52,7 +81,7 @@ def simulate_trade():
         "fear_greed": random.randint(0, 100)
     }
     combo = log_strategy_result(trade)
-    trade["strategie_combo"] = combo
+    trade["strategie_combo"] = mutate_strategy(trade)
     return trade
 
 def log_to_csv(trade, path=LOGFILE_TRADE):
@@ -100,91 +129,49 @@ if st.button("📈 Jetzt 5 Bot-Trades simulieren"):
     st.success("✅ 5 neue Trades wurden erzeugt und geloggt.")
 
 # =============================
-# Telegram-Status
-# =============================
-if ENABLE_TELEGRAM_ALERTS:
-    st.subheader("📬 Telegram Status")
-    try:
-        if os.path.exists(TELEGRAM_LOGFILE):
-            with open(TELEGRAM_LOGFILE) as f:
-                logs = json.load(f)
-            last_sent = logs[-1]["time"]
-            st.success(f"Letzte Benachrichtigung: {last_sent}")
-        else:
-            st.warning("Noch keine Telegram-Nachrichten gesendet.")
-    except:
-        st.warning("Fehler beim Lesen der Telegram-Logs.")
-
-# =============================
-# Kapitalverlauf und Drawdown
+# Neue Erweiterungen: Erfolgsquote pro Coin & Beste Strategie der Woche
 # =============================
 try:
-    df_perf = pd.read_csv(LOGFILE_PERFORMANCE)
-    st.metric("📈 Kapital", f"{df_perf['kapital'].iloc[-1]:,.2f} $")
-    st.line_chart(df_perf.set_index("timestamp")["kapital"])
-    if ENABLE_DRAWDOWN_GRAPH:
-        st.line_chart(df_perf.set_index("timestamp")["drawdown"])
+    df_all = pd.read_csv(LOGFILE_TRADE)
+    st.subheader("📌 Erfolgsquote pro Coin")
+    df_all["erfolg"] = df_all["reward"] > 0
+    stats = df_all.groupby("coin")["erfolg"].mean().reset_index()
+    stats["erfolg"] = (stats["erfolg"] * 100).round(1)
+    st.dataframe(stats.rename(columns={"erfolg": "Trefferquote (%)"}))
+
+    st.subheader("🏅 Beste Strategie der Woche")
+    df_all["timestamp"] = pd.to_datetime(df_all["timestamp"])
+    letzte_woche = df_all[df_all["timestamp"] >= (datetime.datetime.utcnow() - datetime.timedelta(days=7))]
+    if not letzte_woche.empty:
+        top_combo = letzte_woche.groupby("strategie_combo")["reward"].mean().sort_values(ascending=False).head(1)
+        st.success(f"Beste Strategie: {top_combo.index[0]} → Ø Reward: {top_combo.values[0]:.4f}")
+    else:
+        st.info("Noch keine Daten für diese Woche.")
+
+    st.subheader("📊 Top 3 Coins nach Performance")
+    top_coins = df_all.groupby("coin")["reward"].mean().sort_values(ascending=False).head(3).reset_index()
+    st.bar_chart(top_coins.set_index("coin"))
+
+    st.subheader("⭐ Live-Performance Rating")
+    letzte = pd.read_csv(LOGFILE_PERFORMANCE)
+    capital = letzte["kapital"].iloc[-1]
+    rating = "⭐⭐⭐"
+    if capital > INITIAL_CAPITAL * 1.1:
+        rating = "⭐⭐⭐⭐⭐"
+    elif capital < INITIAL_CAPITAL * 0.9:
+        rating = "⭐"
+    elif capital < INITIAL_CAPITAL:
+        rating = "⭐⭐"
+    elif capital > INITIAL_CAPITAL * 1.05:
+        rating = "⭐⭐⭐⭐"
+    st.success(f"Aktuelle Bewertung: {rating}  (Kapital: {capital:.2f} $)")
+
+    st.subheader("🚨 Drawdown-Warnung")
+    letzter_dd = letzte["drawdown"].iloc[-1]
+    if letzter_dd < -INITIAL_CAPITAL * 0.2:
+        st.error(f"⚠️ Kritischer Drawdown: {letzter_dd:.2f} $")
+    else:
+        st.info(f"Aktueller Drawdown: {letzter_dd:.2f} $")
+
 except:
-    st.warning("Kapitaldaten fehlen oder fehlerhaft.")
-
-# =============================
-# Trade-Historie & Heatmap
-# =============================
-try:
-    df = pd.read_csv(LOGFILE_TRADE)
-    st.subheader("📒 Letzte Trades")
-    st.dataframe(df.tail(50), height=300)
-    if ENABLE_HEATMAP:
-        st.subheader("🔥 Performance Heatmap pro Coin")
-        heatmap_data = df.groupby("coin")["reward"].mean().reset_index()
-        st.bar_chart(data=heatmap_data, x="coin", y="reward")
-
-        st.subheader("🧠 Strategie-Kombinationsauswertung")
-        if "strategie_combo" in df.columns:
-            strat_avg = df.groupby("strategie_combo")["reward"].mean().reset_index()
-            strat_avg = strat_avg.sort_values("reward", ascending=False)
-            st.dataframe(strat_avg.rename(columns={"strategie_combo": "Strategie", "reward": "Ø Reward"}))
-            st.bar_chart(strat_avg.set_index("Strategie"))
-except:
-    st.warning("Noch keine Trade-Daten gefunden.")
-
-# =============================
-# Strategien & Mutationstracker
-# =============================
-try:
-    st.subheader("🏆 Top Strategiekombis")
-    with open(JSON_TOP_STRATEGIEN) as f:
-        strat = json.load(f)
-    df_strat = pd.DataFrame(strat, columns=["Strategie", "Reward"])
-    df_strat = df_strat.sort_values("Reward", ascending=False)
-    st.dataframe(df_strat)
-    st.bar_chart(df_strat.set_index("Strategie"))
-except:
-    st.warning("Keine Strategiedaten.")
-
-try:
-    st.subheader("🧬 Mutationen")
-    with open(JSON_MUTATIONEN) as f:
-        mut = json.load(f)
-    df_mut = pd.DataFrame(mut)
-    df_mut["zeit"] = pd.to_datetime(df_mut["zeit"])
-    st.dataframe(df_mut.sort_values("zeit", ascending=False), height=200)
-except:
-    st.warning("Keine Mutationen vorhanden.")
-
-# =============================
-# Lernkurve & Wissenstracking
-# =============================
-if ENABLE_KNOWLEDGE_TRACKING:
-    st.subheader("📚 Lernkurve & Wissensentwicklung")
-    try:
-        df_k = df_perf[["timestamp", "win_ratio"]]
-        st.line_chart(df_k.rename(columns={"win_ratio": "Trefferquote"}).set_index("timestamp"))
-    except:
-        st.info("Noch keine Lernkurve verfügbar.")
-
-# =============================
-# Fußzeile
-# =============================
-st.markdown("---")
-st.markdown("© 2025 KI Trading Bot Dashboard • v2.0 mit Streamlit • Entwickelt mit ❤️")
+    st.warning("Erweiterungsdaten konnten nicht geladen werden.")
