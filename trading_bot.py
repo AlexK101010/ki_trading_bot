@@ -1,66 +1,44 @@
-import time
+
+import pandas as pd
 import random
-import requests
-from config import NEWS_API_KEY, INITIAL_CAPITAL, MAX_HEBEL, MIN_TRADE_INTERVAL, AGGRESSIV_IN_DER_LERNPHASE
+import datetime
+import os
+from strategy_logger import log_strategy_result
 
-class TradingBot:
-    def __init__(self, coins):
-        self.capital = INITIAL_CAPITAL
-        self.coins = coins
-        self.trade_history = []
-        self.min_trade_interval = MIN_TRADE_INTERVAL
-        self.aggressiv = AGGRESSIV_IN_DER_LERNPHASE
+def simulate_trade():
+    # Dummy Trade-Daten
+    coins = ["BTC", "ETH", "SOL", "XRP", "SUI"]
+    coin = random.choice(coins)
+    price = round(random.uniform(100, 50000), 2)
+    reward = round(random.uniform(-0.1, 0.3), 4)
+    action = random.choice(["Buy", "Sell"])
 
-    def run_strategy(self):
-        for symbol in self.coins:
-            price = self.fetch_price(symbol)
-            signal = self.generate_signal(price, symbol)
-            if signal:
-                self.execute_trade(symbol, signal, price)
+    trade = {
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "coin": coin,
+        "price": price,
+        "reward": reward,
+        "action": action,
+        "fibonacci": random.choice(["Support", "Resistance", "Neutral"]),
+        "ma200": random.choice(["Above", "Below"]),
+        "news": random.choice(["Bullish", "Bearish", "Neutral"]),
+        "fear_greed": random.randint(0, 100)
+    }
 
-    def fetch_price(self, symbol):
-        # Dummy-Methode, CoinGecko API kommt später rein
-        return round(random.uniform(50, 50000), 2)
+    strategie_combo = log_strategy_result(trade)
+    trade["strategie_combo"] = strategie_combo
 
-    def generate_signal(self, price, symbol):
-        # Beispiel: kombinierte einfache Heuristik
-        fib = price % 2 == 0
-        rsi = random.choice(["Overbought", "Neutral", "Oversold"])
-        ma = price > 10000
-        sentiment = self.fetch_news_sentiment(symbol)
-        signal = None
+    return trade
 
-        if fib and rsi == "Oversold" and ma:
-            signal = "Buy"
-        elif rsi == "Overbought" and not ma:
-            signal = "Sell"
-        elif sentiment < -0.5:
-            signal = "Sell"
-        elif sentiment > 0.5:
-            signal = "Buy"
+def log_to_csv(trade, path="bot_log.csv"):
+    df = pd.DataFrame([trade])
+    if os.path.exists(path):
+        df_old = pd.read_csv(path)
+        df = pd.concat([df_old, df], ignore_index=True)
+    df.to_csv(path, index=False)
 
-        return signal
-
-    def fetch_news_sentiment(self, symbol):
-        try:
-            url = f"https://newsapi.org/v2/everything?q={symbol}&apiKey={NEWS_API_KEY}"
-            res = requests.get(url).json()
-            total = len(res.get("articles", []))
-            score = random.uniform(-1, 1) if total > 0 else 0
-            return round(score, 2)
-        except Exception:
-            return 0
-
-    def execute_trade(self, symbol, action, price):
-        hebel = random.randint(1, MAX_HEBEL)
-        amount = 100 if self.aggressiv else 50
-        reward = round(random.uniform(-1, 1) * hebel, 2)
-        self.capital += reward
-        self.trade_history.append({
-            "symbol": symbol,
-            "action": action,
-            "hebel": hebel,
-            "price": price,
-            "reward": reward
-        })
-        print(f"💹 {symbol} | Aktion: {action} | Preis: {price}$ | Hebel: x{hebel} | Gewinn/Verlust: {reward} → Kapital: {self.capital:.2f}$")
+if __name__ == "__main__":
+    for _ in range(5):  # Simuliere 5 Trades pro Lauf
+        t = simulate_trade()
+        log_to_csv(t)
+        print(f"🔁 Trade geloggt: {t['coin']} {t['action']} @ {t['price']} | Strategie: {t['strategie_combo']}")
