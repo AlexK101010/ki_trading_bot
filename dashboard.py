@@ -129,6 +129,30 @@ if st.button("📈 Jetzt 5 Bot-Trades simulieren"):
     st.success("✅ 5 neue Trades wurden erzeugt und geloggt.")
 
 # =============================
+# Kapitalverlauf & Trefferquote
+# =============================
+try:
+    df_perf = pd.read_csv(LOGFILE_PERFORMANCE)
+    st.subheader("📈 Kapitalverlauf")
+    st.metric("Kapital", f"{df_perf['kapital'].iloc[-1]:,.2f} $")
+    st.line_chart(df_perf.set_index("timestamp")["kapital"])
+
+    st.subheader("🎯 Trefferquote-Verlauf")
+    st.line_chart(df_perf.set_index("timestamp")["win_ratio"])
+except:
+    st.warning("Kapitaldaten oder Trefferquote konnten nicht geladen werden.")
+
+# =============================
+# Letzte Trades anzeigen
+# =============================
+try:
+    df_trades = pd.read_csv(LOGFILE_TRADE)
+    st.subheader("📒 Letzte Trades")
+    st.dataframe(df_trades.sort_values("timestamp", ascending=False).head(20))
+except:
+    st.warning("Trade-Daten fehlen oder fehlerhaft.")
+
+# =============================
 # Neue Erweiterungen: Erfolgsquote pro Coin & Beste Strategie der Woche
 # =============================
 try:
