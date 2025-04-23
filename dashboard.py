@@ -4,8 +4,10 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime
+import random
+import datetime
 from config import *
+from strategy_logger import log_strategy_result
 
 st.set_page_config(page_title="KI Trading Bot Dashboard", layout="wide")
 
@@ -23,6 +25,39 @@ if ENABLE_DASHBOARD_CONTROLS:
         if ENABLE_STRATEGY_RESET:
             if st.button("🔁 Strategien zurücksetzen"):
                 st.success("Strategien wurden zurückgesetzt.")
+
+# =============================
+# Manueller Trade-Simulator
+# =============================
+def simulate_trade():
+    coins = ["BTC", "ETH", "SOL", "XRP", "SUI"]
+    trade = {
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "coin": random.choice(coins),
+        "price": round(random.uniform(100, 50000), 2),
+        "reward": round(random.uniform(-0.1, 0.3), 4),
+        "action": random.choice(["Buy", "Sell"]),
+        "fibonacci": random.choice(["Support", "Resistance", "Neutral"]),
+        "ma200": random.choice(["Above", "Below"]),
+        "news": random.choice(["Bullish", "Bearish", "Neutral"]),
+        "fear_greed": random.randint(0, 100)
+    }
+    combo = log_strategy_result(trade)
+    trade["strategie_combo"] = combo
+    return trade
+
+def log_to_csv(trade, path=LOGFILE_TRADE):
+    df = pd.DataFrame([trade])
+    if os.path.exists(path):
+        old = pd.read_csv(path)
+        df = pd.concat([old, df], ignore_index=True)
+    df.to_csv(path, index=False)
+
+if st.button("📈 Jetzt 5 Bot-Trades simulieren"):
+    for _ in range(5):
+        t = simulate_trade()
+        log_to_csv(t)
+    st.success("✅ 5 neue Trades wurden erzeugt und geloggt.")
 
 # =============================
 # Telegram-Status
@@ -63,6 +98,13 @@ try:
         st.subheader("🔥 Performance Heatmap pro Coin")
         heatmap_data = df.groupby("coin")["reward"].mean().reset_index()
         st.bar_chart(data=heatmap_data, x="coin", y="reward")
+
+        st.subheader("🧠 Strategie-Kombinationsauswertung")
+        if "strategie_combo" in df.columns:
+            strat_avg = df.groupby("strategie_combo")["reward"].mean().reset_index()
+            strat_avg = strat_avg.sort_values("reward", ascending=False)
+            st.dataframe(strat_avg.rename(columns={"strategie_combo": "Strategie", "reward": "Ø Reward"}))
+            st.bar_chart(strat_avg.set_index("Strategie"))
 except:
     st.warning("Noch keine Trade-Daten gefunden.")
 
@@ -74,7 +116,9 @@ try:
     with open(JSON_TOP_STRATEGIEN) as f:
         strat = json.load(f)
     df_strat = pd.DataFrame(strat, columns=["Strategie", "Reward"])
+    df_strat = df_strat.sort_values("Reward", ascending=False)
     st.dataframe(df_strat)
+    st.bar_chart(df_strat.set_index("Strategie"))
 except:
     st.warning("Keine Strategiedaten.")
 
