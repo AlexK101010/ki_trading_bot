@@ -139,6 +139,17 @@ try:
 
     st.subheader("🎯 Trefferquote-Verlauf")
     st.line_chart(df_perf.set_index("timestamp")["win_ratio"])
+
+    avg_hit = df_perf["win_ratio"].mean()
+    st.metric("Ø Trefferquote", f"{avg_hit*100:.2f} %")
+
+    # Drawdown-Warnung
+    st.subheader("🚨 Drawdown-Warnung")
+    letzter_dd = df_perf["drawdown"].iloc[-1]
+    if letzter_dd < -INITIAL_CAPITAL * 0.2:
+        st.error(f"⚠️ Kritischer Drawdown: {letzter_dd:.2f} $")
+    else:
+        st.info(f"Aktueller Drawdown: {letzter_dd:.2f} $")
 except:
     st.warning("Kapitaldaten oder Trefferquote konnten nicht geladen werden.")
 
@@ -171,6 +182,19 @@ try:
     st.subheader("📚 Lernkurve & Entwicklung")
     df_k = pd.read_csv(LOGFILE_PERFORMANCE)[["timestamp", "win_ratio"]]
     st.line_chart(df_k.rename(columns={"win_ratio": "Trefferquote"}).set_index("timestamp"))
+
+    st.subheader("🏆 Beste Strategie der Woche")
+    df_all["timestamp"] = pd.to_datetime(df_all["timestamp"])
+    letzte_woche = df_all[df_all["timestamp"] >= (datetime.datetime.utcnow() - datetime.timedelta(days=7))]
+    if not letzte_woche.empty:
+        top_combo = letzte_woche.groupby("strategie_combo")["reward"].mean().sort_values(ascending=False).head(1)
+        st.success(f"Beste Strategie: {top_combo.index[0]} → Ø Reward: {top_combo.values[0]:.4f}")
+    else:
+        st.info("Noch keine Daten für diese Woche.")
+
+    st.subheader("📊 Top 3 Coins nach Performance")
+    top_coins = df_all.groupby("coin")["reward"].mean().sort_values(ascending=False).head(3).reset_index()
+    st.bar_chart(top_coins.set_index("coin"))
 
 except:
     st.warning("Einige Auswertungsdaten konnten nicht geladen werden.")
