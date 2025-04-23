@@ -153,49 +153,24 @@ except:
     st.warning("Trade-Daten fehlen oder fehlerhaft.")
 
 # =============================
-# Neue Erweiterungen: Erfolgsquote pro Coin & Beste Strategie der Woche
+# Erweiterungen: Heatmap, Strategieanalyse, Lernkurve etc.
 # =============================
 try:
     df_all = pd.read_csv(LOGFILE_TRADE)
-    st.subheader("📌 Erfolgsquote pro Coin")
-    df_all["erfolg"] = df_all["reward"] > 0
-    stats = df_all.groupby("coin")["erfolg"].mean().reset_index()
-    stats["erfolg"] = (stats["erfolg"] * 100).round(1)
-    st.dataframe(stats.rename(columns={"erfolg": "Trefferquote (%)"}))
+    st.subheader("🔥 Heatmap: Durchschnittlicher Reward pro Coin")
+    heatmap_data = df_all.groupby("coin")["reward"].mean().reset_index()
+    st.bar_chart(data=heatmap_data.set_index("coin"))
 
-    st.subheader("🏅 Beste Strategie der Woche")
-    df_all["timestamp"] = pd.to_datetime(df_all["timestamp"])
-    letzte_woche = df_all[df_all["timestamp"] >= (datetime.datetime.utcnow() - datetime.timedelta(days=7))]
-    if not letzte_woche.empty:
-        top_combo = letzte_woche.groupby("strategie_combo")["reward"].mean().sort_values(ascending=False).head(1)
-        st.success(f"Beste Strategie: {top_combo.index[0]} → Ø Reward: {top_combo.values[0]:.4f}")
-    else:
-        st.info("Noch keine Daten für diese Woche.")
+    st.subheader("🧠 Strategie-Kombinationen im Vergleich")
+    if "strategie_combo" in df_all.columns:
+        strat_avg = df_all.groupby("strategie_combo")["reward"].mean().reset_index()
+        strat_avg = strat_avg.sort_values("reward", ascending=False)
+        st.dataframe(strat_avg.rename(columns={"strategie_combo": "Strategie", "reward": "Ø Reward"}))
+        st.bar_chart(strat_avg.set_index("Strategie"))
 
-    st.subheader("📊 Top 3 Coins nach Performance")
-    top_coins = df_all.groupby("coin")["reward"].mean().sort_values(ascending=False).head(3).reset_index()
-    st.bar_chart(top_coins.set_index("coin"))
-
-    st.subheader("⭐ Live-Performance Rating")
-    letzte = pd.read_csv(LOGFILE_PERFORMANCE)
-    capital = letzte["kapital"].iloc[-1]
-    rating = "⭐⭐⭐"
-    if capital > INITIAL_CAPITAL * 1.1:
-        rating = "⭐⭐⭐⭐⭐"
-    elif capital < INITIAL_CAPITAL * 0.9:
-        rating = "⭐"
-    elif capital < INITIAL_CAPITAL:
-        rating = "⭐⭐"
-    elif capital > INITIAL_CAPITAL * 1.05:
-        rating = "⭐⭐⭐⭐"
-    st.success(f"Aktuelle Bewertung: {rating}  (Kapital: {capital:.2f} $)")
-
-    st.subheader("🚨 Drawdown-Warnung")
-    letzter_dd = letzte["drawdown"].iloc[-1]
-    if letzter_dd < -INITIAL_CAPITAL * 0.2:
-        st.error(f"⚠️ Kritischer Drawdown: {letzter_dd:.2f} $")
-    else:
-        st.info(f"Aktueller Drawdown: {letzter_dd:.2f} $")
+    st.subheader("📚 Lernkurve & Entwicklung")
+    df_k = pd.read_csv(LOGFILE_PERFORMANCE)[["timestamp", "win_ratio"]]
+    st.line_chart(df_k.rename(columns={"win_ratio": "Trefferquote"}).set_index("timestamp"))
 
 except:
-    st.warning("Erweiterungsdaten konnten nicht geladen werden.")
+    st.warning("Einige Auswertungsdaten konnten nicht geladen werden.")
