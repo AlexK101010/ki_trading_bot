@@ -25,6 +25,15 @@ if ENABLE_DASHBOARD_CONTROLS:
         if ENABLE_STRATEGY_RESET:
             if st.button("🔁 Strategien zurücksetzen"):
                 st.success("Strategien wurden zurückgesetzt.")
+        if st.button("🧹 Kapitalverlauf zurücksetzen"):
+            try:
+                if os.path.exists(LOGFILE_PERFORMANCE):
+                    os.remove(LOGFILE_PERFORMANCE)
+                    st.success("Kapitalverlauf wurde zurückgesetzt.")
+                else:
+                    st.info("Keine Kapitaldatei vorhanden zum Zurücksetzen.")
+            except Exception as e:
+                st.error(f"Fehler beim Zurücksetzen: {e}")
 
 # =============================
 # Manueller Trade-Simulator
@@ -53,10 +62,41 @@ def log_to_csv(trade, path=LOGFILE_TRADE):
         df = pd.concat([old, df], ignore_index=True)
     df.to_csv(path, index=False)
 
+def update_performance_log(trade):
+    kapital = INITIAL_CAPITAL
+    drawdown = 0.0
+    win_ratio = 0.0
+    pfad = LOGFILE_PERFORMANCE
+
+    if os.path.exists(pfad):
+        df = pd.read_csv(pfad)
+        kapital = df["kapital"].iloc[-1] + trade["reward"] * 1000
+        drawdown = min(drawdown, kapital - df["kapital"].max())
+        win_ratio = (df["reward"] > 0).sum() / len(df)
+    else:
+        kapital += trade["reward"] * 1000
+
+    df_new = pd.DataFrame([{
+        "timestamp": trade["timestamp"],
+        "kapital": kapital,
+        "drawdown": drawdown,
+        "win_ratio": win_ratio,
+        "reward": trade["reward"]
+    }])
+
+    if os.path.exists(pfad):
+        df_old = pd.read_csv(pfad)
+        df_all = pd.concat([df_old, df_new], ignore_index=True)
+    else:
+        df_all = df_new
+
+    df_all.to_csv(pfad, index=False)
+
 if st.button("📈 Jetzt 5 Bot-Trades simulieren"):
     for _ in range(5):
         t = simulate_trade()
         log_to_csv(t)
+        update_performance_log(t)
     st.success("✅ 5 neue Trades wurden erzeugt und geloggt.")
 
 # =============================
