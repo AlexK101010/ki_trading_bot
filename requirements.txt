@@ -6,3 +6,5 @@ pandas
 requests
 pyyaml
 streamlit
+numpy
+scikit-learn
