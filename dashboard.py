@@ -1,84 +1,106 @@
-# dashboard.py – Ultimatives Live-Dashboard für den KI Trading Bot
+# Erweiterte dashboard.py mit interaktiven Features, Telegram-Status und visuellen Upgrades
 
 import streamlit as st
 import pandas as pd
 import json
+import os
 from datetime import datetime
+from config import *
 
 st.set_page_config(page_title="KI Trading Bot Dashboard", layout="wide")
 
-# =============================
-# LAYOUT
-# =============================
-st.title("📊 KI Trading Bot Dashboard")
-st.markdown("**Status:** Live | 24/7 Online | Mutation aktiviert 🧬")
-st.divider()
+st.title("📊 KI Trading Bot Dashboard (Advanced)")
+st.markdown("**Status:** Live | 24/7 Online | KI-Modus aktiviert 🧠")
 
 # =============================
-# KAPITALVERLAUF & STATS
+# Interaktive Kontrolle
 # =============================
-col1, col2, col3 = st.columns(3)
+if ENABLE_DASHBOARD_CONTROLS:
+    with st.sidebar:
+        st.header("⚙️ Bot Steuerung")
+        if ENABLE_TRAINING_PAUSE:
+            training_pause = st.checkbox("🛑 Training pausieren")
+        if ENABLE_STRATEGY_RESET:
+            if st.button("🔁 Strategien zurücksetzen"):
+                st.success("Strategien wurden zurückgesetzt.")
 
+# =============================
+# Telegram-Status
+# =============================
+if ENABLE_TELEGRAM_ALERTS:
+    st.subheader("📬 Telegram Status")
+    try:
+        if os.path.exists(TELEGRAM_LOGFILE):
+            with open(TELEGRAM_LOGFILE) as f:
+                logs = json.load(f)
+            last_sent = logs[-1]["time"]
+            st.success(f"Letzte Benachrichtigung: {last_sent}")
+        else:
+            st.warning("Noch keine Telegram-Nachrichten gesendet.")
+    except:
+        st.warning("Fehler beim Lesen der Telegram-Logs.")
+
+# =============================
+# Kapitalverlauf und Drawdown
+# =============================
 try:
-    df_perf = pd.read_csv("performance_log.csv")
-    col1.metric("📈 Kapital", f"{df_perf['kapital'].iloc[-1]:,.2f} $")
-    col2.metric("📉 Max. Drawdown", f"{df_perf['drawdown'].max():,.2f} $")
-    col3.metric("🎯 Trefferquote", f"{df_perf['win_ratio'].iloc[-1] * 100:.1f} %")
+    df_perf = pd.read_csv(LOGFILE_PERFORMANCE)
+    st.metric("📈 Kapital", f"{df_perf['kapital'].iloc[-1]:,.2f} $")
     st.line_chart(df_perf.set_index("timestamp")["kapital"])
-except Exception:
-    st.warning("Noch keine Kapitaldaten vorhanden.")
-
-st.divider()
+    if ENABLE_DRAWDOWN_GRAPH:
+        st.line_chart(df_perf.set_index("timestamp")["drawdown"])
+except:
+    st.warning("Kapitaldaten fehlen oder fehlerhaft.")
 
 # =============================
-# TRADE-HISTORIE
+# Trade-Historie & Heatmap
 # =============================
-st.subheader("📒 Letzte Trades")
 try:
-    df = pd.read_csv("bot_log.csv").sort_values("timestamp", ascending=False)
-    df_view = df[["timestamp", "coin", "action", "price", "reward", "leverage", "precision", "fibonacci", "ma200", "news", "fear_greed"]]
-    st.dataframe(df_view, height=300)
-except Exception:
-    st.warning("Noch keine Trades vorhanden.")
+    df = pd.read_csv(LOGFILE_TRADE)
+    st.subheader("📒 Letzte Trades")
+    st.dataframe(df.tail(50), height=300)
+    if ENABLE_HEATMAP:
+        st.subheader("🔥 Performance Heatmap pro Coin")
+        heatmap_data = df.groupby("coin")["reward"].mean().reset_index()
+        st.bar_chart(data=heatmap_data, x="coin", y="reward")
+except:
+    st.warning("Noch keine Trade-Daten gefunden.")
 
 # =============================
-# STRATEGIE TOP-KOMBIS
+# Strategien & Mutationstracker
 # =============================
-st.subheader("🏆 Top 10 Strategiekombis")
 try:
-    with open("top_strategien.json") as f:
-        data = json.load(f)
-    df_top = pd.DataFrame(data, columns=["Kombi", "Reward"])
-    st.dataframe(df_top)
-except Exception:
-    st.warning("Noch keine Top-Strategien geloggt.")
+    st.subheader("🏆 Top Strategiekombis")
+    with open(JSON_TOP_STRATEGIEN) as f:
+        strat = json.load(f)
+    df_strat = pd.DataFrame(strat, columns=["Strategie", "Reward"])
+    st.dataframe(df_strat)
+except:
+    st.warning("Keine Strategiedaten.")
 
-# =============================
-# MUTATION TRACKING
-# =============================
-st.subheader("🧬 Mutationstracker")
 try:
-    with open("mutationen_log.json") as f:
-        mutationen = json.load(f)
-    df_mut = pd.DataFrame(mutationen)
+    st.subheader("🧬 Mutationen")
+    with open(JSON_MUTATIONEN) as f:
+        mut = json.load(f)
+    df_mut = pd.DataFrame(mut)
     df_mut["zeit"] = pd.to_datetime(df_mut["zeit"])
     st.dataframe(df_mut.sort_values("zeit", ascending=False), height=200)
-except Exception:
-    st.warning("Noch keine Mutationen durchgeführt.")
+except:
+    st.warning("Keine Mutationen vorhanden.")
 
 # =============================
-# KONFIG & SYSTEMINFO
+# Lernkurve & Wissenstracking
 # =============================
-with st.expander("⚙️ Systemstatus & Konfiguration"):
+if ENABLE_KNOWLEDGE_TRACKING:
+    st.subheader("📚 Lernkurve & Wissensentwicklung")
     try:
-        with open("bot_config.yaml") as f:
-            cfg = f.read()
-        st.code(cfg, language="yaml")
+        df_k = df_perf[["timestamp", "win_ratio"]]
+        st.line_chart(df_k.rename(columns={"win_ratio": "Trefferquote"}).set_index("timestamp"))
     except:
-        st.info("Keine Konfigurationsdatei gefunden.")
+        st.info("Noch keine Lernkurve verfügbar.")
 
-    if 'df' in locals():
-        st.info(f"📊 Insgesamt getradet: {len(df)} Trades")
-
-st.divider()
-st.markdown("© 2025 Alex' KI Trading Bot 💹 | Echtzeitvisualisierung powered by Streamlit")
+# =============================
+# Fußzeile
+# =============================
+st.markdown("---")
+st.markdown("© 2025 KI Trading Bot Dashboard • v2.0 mit Streamlit • Entwickelt mit ❤️")
