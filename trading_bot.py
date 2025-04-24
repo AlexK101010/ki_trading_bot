@@ -1,4 +1,8 @@
 # trading_bot.py – verbesserte Bot-Klasse mit Learning & Logging
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
 
 import pandas as pd
 import random
@@ -74,4 +78,5 @@ class TradingBot:
         trade = self.simulate_trade()
         self.log_trade(trade)
         self.update_performance(trade)
-        print(f"✅ Trade durchgeführt: {trade['coin']} {trade['action']} @ {trade['price']} | Reward: {trade['reward']}, Strategie: {trade['strategie_combo']}")
+    logging.info(f"✅ Trade durchgeführt: {trade['coin']} {trade['action']} @ {trade['price']} | Reward: {trade['reward']}, Strategie: {trade['strategie_combo']}")
+
