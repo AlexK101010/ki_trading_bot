@@ -8,7 +8,7 @@ from strategy_logger import log_strategy_result
 from config import INITIAL_CAPITAL, LOGFILE_TRADE, LOGFILE_PERFORMANCE
 
 class TradingBot:
-    def __init__(self, coins, min_trade_interval=60):
+    def __init__(self, coins, min_trade_interval=30):
         self.coins = coins
         self.min_trade_interval = min_trade_interval
 
