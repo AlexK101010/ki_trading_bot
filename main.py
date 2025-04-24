@@ -1,9 +1,10 @@
+# main.py – Startpunkt des KI-Trading-Bots
 import time
 from trading_bot import TradingBot
-from config import COINS
+from config import COINS, MIN_TRADE_INTERVAL
 
 if __name__ == "__main__":
-    bot = TradingBot(coins=COINS)
+    bot = TradingBot(coins=COINS, min_trade_interval=MIN_TRADE_INTERVAL)
 
     print("🤖 KI-Trading-Bot läuft...")
 
